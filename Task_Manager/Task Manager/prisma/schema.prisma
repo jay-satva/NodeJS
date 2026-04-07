@@ -1,0 +1,120 @@
+// Prisma Schema — Task Manager API
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TaskStatus {
+  To_Do
+  In_Progress
+  Done
+}
+
+enum ReactionType {
+  Like
+  Helpful
+  Question
+}
+
+enum TaskPriority {
+  Low
+  Medium
+  High
+}
+
+model User {
+  id          Int            @id @default(autoincrement())
+  name        String      
+  email       String         @unique
+  password    String      
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  
+  tasks       Task[]
+  attachment  Attachment[]
+  comments    Comment[]
+
+  reactions   CommentReaction[]
+}
+
+model Task {
+  id           Int          @id @default(autoincrement())
+  title        String
+  description  String?
+  status       TaskStatus   @default(To_Do)
+  priority     TaskPriority @default(Medium)
+  due_date     DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+ 
+  userId       Int
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+ 
+  tags         TaskTag[]
+  attachments  Attachment[]
+  comments     Comment[]
+}
+
+model Tag {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+
+  tasks       TaskTag[]
+}
+
+model TaskTag {
+  taskId      Int
+  task        Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  tagId       Int
+  tag         Tag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+}
+
+model Attachment {
+  id          Int          @id @default(autoincrement())
+  url         String
+  fileName    String 
+  size        Int
+
+  taskId      Int
+  task        Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  userId      Int
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  taskId    Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  reactions CommentReaction[]
+}
+
+
+model CommentReaction {
+  id          Int            @id @default(autoincrement())
+  type        ReactionType
+
+  commentId   Int
+  comment     Comment        @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  userId      Int
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+}
