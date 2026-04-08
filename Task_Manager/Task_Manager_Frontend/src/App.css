@@ -1,0 +1,45 @@
+/* ─── App Shell ─────────────────────────────────────────────────────────────── */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ─── Auth Layout ───────────────────────────────────────────────────────────── */
+.auth-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--bg-base);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Geometric background decoration */
+.auth-layout::before {
+  content: '';
+  position: absolute;
+  top: -200px;
+  right: -200px;
+  width: 600px;
+  height: 600px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.auth-layout::after {
+  content: '';
+  position: absolute;
+  bottom: -150px;
+  left: -150px;
+  width: 400px;
+  height: 400px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  opacity: 0.07;
+  pointer-events: none;
+}

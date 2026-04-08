@@ -1,0 +1,294 @@
+// // This is your Prisma schema file,
+// // learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// // Get a free hosted Postgres database in seconds: `npx create-db`
+
+// generator client {
+//   provider = "prisma-client"
+//   output   = "../generated/prisma"
+// }
+
+// datasource db {
+//   provider = "postgresql"
+// }
+
+
+// enum Role {
+//   ADMIN
+//   MANAGER
+//   MEMBER
+// }
+
+// enum TaskStatus {
+//   BACKLOG
+//   ONGOING
+//   DEVELOPMENT_COMPLETED
+//   UNIT_TESTING
+//   QA
+//   QA_COMPLETED
+//   COMPLETED
+// }
+
+// model User {
+//   id           String       @id
+//   email        String       @unique
+//   name         String
+//   password     String
+//   created_at   DateTime     @default(now())
+//   updatedAt    DateTime     @updatedAt 
+
+//   tasks        Task[]
+// }
+
+// model Organization {
+//   id           String       @id
+//   name         String       @unique
+
+//   projects     Project[]
+// }
+
+// // model orgMember { 
+  
+// // }
+
+// model Project {
+//   id           String       @id
+//   title        String     
+//   orgId        String 
+//   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+//   tasks        Task[]
+// }
+
+// model Task {
+//   id           String       @id
+//   title        String       @unique
+//   description  String       
+//   status       TaskStatus   @default(BACKLOG)
+//   archived     Boolean
+//   archivedAt   DateTime?
+//   createdAt    DateTime     @default(now())
+//   updatedAt    DateTime     @updatedAt
+
+//   userId       String
+//   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+//   projId       String
+//   project      Project      @relation(fields: [projId], references: [id], onDelete: Cascade)
+
+
+// }
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum TaskStatus {
+  BACKLOG
+  ONGOING
+  DEVELOPMENT_COMPLETED
+  UNIT_TESTING
+  QA
+  QA_COMPLETED
+  COMPLETED
+}
+
+// ─────────────────────────────────────────────
+// USER
+// ─────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  orgMembers        OrgMember[]
+  assignedTasks     Task[]             @relation("AssignedTasks")
+  comments          Comment[]
+  activityLogs      ActivityLog[]
+  createdProjects   Project[]          @relation("ProjectCreator")
+  previousAssignments AssignmentHistory[] @relation("PreviousUser")
+  newAssignments      AssignmentHistory[] @relation("NewUser")
+}
+
+// ─────────────────────────────────────────────
+// ORGANIZATION
+// ─────────────────────────────────────────────
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  // Relations
+  members  OrgMember[]
+  projects Project[]
+  tags     Tag[]
+}
+
+// ─────────────────────────────────────────────
+// ORG MEMBER (User ↔ Organization join table)
+// ─────────────────────────────────────────────
+
+model OrgMember {
+  userId   String
+  orgId    String
+  role     Role     @default(MEMBER)
+  joinedAt DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([userId, orgId]) // composite PK — user can only join an org once
+}
+
+// ─────────────────────────────────────────────
+// PROJECT
+// ─────────────────────────────────────────────
+
+model Project {
+  id        String   @id @default(uuid())
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  createdBy String
+  creator   User         @relation("ProjectCreator", fields: [createdBy], references: [id])
+
+  tasks     Task[]
+
+  @@unique([title, orgId]) // title unique per org, not globally
+}
+
+// ─────────────────────────────────────────────
+// TASK
+// ─────────────────────────────────────────────
+
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String
+  status      TaskStatus @default(BACKLOG)
+  archived    Boolean    @default(false)
+  archivedAt  DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  projId      String
+  project     Project    @relation(fields: [projId], references: [id], onDelete: Restrict)
+  // onDelete: Restrict — project deletion should archive tasks, not hard delete
+
+  assignedTo  String?
+  assignee    User?      @relation("AssignedTasks", fields: [assignedTo], references: [id], onDelete: SetNull)
+
+  // Relations
+  comments          Comment[]
+  activityLogs      ActivityLog[]
+  assignmentHistory AssignmentHistory[]
+  tags              TaskTag[]
+
+  @@unique([title, projId]) // title unique per project, not globally
+}
+
+// ─────────────────────────────────────────────
+// COMMENT
+// ─────────────────────────────────────────────
+
+model Comment {
+  id        String   @id @default(uuid())
+  message   String
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────
+// ACTIVITY LOG
+// ─────────────────────────────────────────────
+
+model ActivityLog {
+  id        String     @id @default(uuid())
+  oldStatus TaskStatus
+  newStatus TaskStatus
+  createdAt DateTime   @default(now())
+
+  taskId    String
+  task      Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────
+// ASSIGNMENT HISTORY
+// ─────────────────────────────────────────────
+
+model AssignmentHistory {
+  id           String   @id @default(uuid())
+  timeOfChange DateTime @default(now())
+
+  taskId       String
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  previousUserId String?
+  previousUser   User?   @relation("PreviousUser", fields: [previousUserId], references: [id], onDelete: SetNull)
+
+  newUserId    String?
+  newUser      User?    @relation("NewUser", fields: [newUserId], references: [id], onDelete: SetNull)
+}
+
+// ─────────────────────────────────────────────
+// TAG
+// ─────────────────────────────────────────────
+
+model Tag {
+  id    String @id @default(uuid())
+  name  String
+
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  tasks TaskTag[]
+
+  @@unique([name, orgId]) // tag names unique per org
+}
+
+// ─────────────────────────────────────────────
+// TASK TAG (Task ↔ Tag join table)
+// ─────────────────────────────────────────────
+
+model TaskTag {
+  taskId String
+  tagId  String
+
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+}
