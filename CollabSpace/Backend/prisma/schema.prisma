@@ -88,9 +88,10 @@ datasource db {
   provider = "postgresql"
 }
 
-// ─────────────────────────────────────────────
-// ENUMS
-// ─────────────────────────────────────────────
+enum GlobalRole {
+  SUPER_ADMIN
+  USER
+}
 
 enum Role {
   ADMIN
@@ -108,21 +109,17 @@ enum TaskStatus {
   COMPLETED
 }
 
-// ─────────────────────────────────────────────
-// USER
-// ─────────────────────────────────────────────
-
 model User {
-  id        String   @id @default(uuid())
+  id        String   @id @default(uuid()) @db.Uuid
   email     String   @unique
   name      String
   password  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
+  globalRole        GlobalRole         @default(USER)
   orgMembers        OrgMember[]
-  assignedTasks     Task[]             @relation("AssignedTasks")
+  taskAssignments   TaskAssignment[]
   comments          Comment[]
   activityLogs      ActivityLog[]
   createdProjects   Project[]          @relation("ProjectCreator")
@@ -130,64 +127,50 @@ model User {
   newAssignments      AssignmentHistory[] @relation("NewUser")
 }
 
-// ─────────────────────────────────────────────
-// ORGANIZATION
-// ─────────────────────────────────────────────
-
 model Organization {
-  id        String   @id @default(uuid())
+  id        String   @id @default(uuid()) @db.Uuid
   name      String   @unique
   createdAt DateTime @default(now())
 
-  // Relations
   members  OrgMember[]
   projects Project[]
   tags     Tag[]
 }
 
-// ─────────────────────────────────────────────
-// ORG MEMBER (User ↔ Organization join table)
-// ─────────────────────────────────────────────
-
 model OrgMember {
-  userId   String
-  orgId    String
+  userId   String   @db.Uuid
+  orgId    String   @db.Uuid
   role     Role     @default(MEMBER)
   joinedAt DateTime @default(now())
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
-  @@id([userId, orgId]) // composite PK — user can only join an org once
+  @@id([userId, orgId]) 
+  
 }
-
-// ─────────────────────────────────────────────
-// PROJECT
-// ─────────────────────────────────────────────
 
 model Project {
-  id        String   @id @default(uuid())
-  title     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String    @id @default(uuid()) @db.Uuid
+  title      String
+  archived   Boolean   @default(false)
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  orgId     String
-  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId      String    @db.Uuid
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
-  createdBy String
-  creator   User         @relation("ProjectCreator", fields: [createdBy], references: [id])
+  createdBy  String    @db.Uuid
+  creator    User      @relation("ProjectCreator", fields: [createdBy], references: [id])
 
-  tasks     Task[]
+  tasks      Task[]
 
-  @@unique([title, orgId]) // title unique per org, not globally
+  @@unique([title, orgId]) 
 }
 
-// ─────────────────────────────────────────────
-// TASK
-// ─────────────────────────────────────────────
-
 model Task {
-  id          String     @id @default(uuid())
+  id          String     @id @default(uuid()) @db.Uuid
   title       String
   description String
   status      TaskStatus @default(BACKLOG)
@@ -196,96 +179,83 @@ model Task {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  projId      String
+  projId      String     @db.Uuid
   project     Project    @relation(fields: [projId], references: [id], onDelete: Restrict)
-  // onDelete: Restrict — project deletion should archive tasks, not hard delete
 
-  assignedTo  String?
-  assignee    User?      @relation("AssignedTasks", fields: [assignedTo], references: [id], onDelete: SetNull)
-
-  // Relations
   comments          Comment[]
   activityLogs      ActivityLog[]
   assignmentHistory AssignmentHistory[]
+  assignments       TaskAssignment[]
   tags              TaskTag[]
 
-  @@unique([title, projId]) // title unique per project, not globally
+  @@unique([title, projId]) 
 }
 
-// ─────────────────────────────────────────────
-// COMMENT
-// ─────────────────────────────────────────────
+model TaskAssignment {
+  taskId      String   @db.Uuid
+  userId      String   @db.Uuid
+  assignedAt  DateTime @default(now())
+
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+}
 
 model Comment {
-  id        String   @id @default(uuid())
+  id        String   @id @default(uuid()) @db.Uuid
   message   String
   createdAt DateTime @default(now())
 
-  userId    String
+  userId    String   @db.Uuid
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  taskId    String
+  taskId    String   @db.Uuid
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
 }
 
-// ─────────────────────────────────────────────
-// ACTIVITY LOG
-// ─────────────────────────────────────────────
-
 model ActivityLog {
-  id        String     @id @default(uuid())
+  id        String     @id @default(uuid()) @db.Uuid
   oldStatus TaskStatus
   newStatus TaskStatus
   createdAt DateTime   @default(now())
 
-  taskId    String
+  taskId    String     @db.Uuid
   task      Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
-  userId    String
+  userId    String     @db.Uuid
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// ─────────────────────────────────────────────
-// ASSIGNMENT HISTORY
-// ─────────────────────────────────────────────
-
 model AssignmentHistory {
-  id           String   @id @default(uuid())
+  id           String   @id @default(uuid()) @db.Uuid
   timeOfChange DateTime @default(now())
 
-  taskId       String
+  taskId       String   @db.Uuid
   task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
-  previousUserId String?
+  previousUserId String? @db.Uuid
   previousUser   User?   @relation("PreviousUser", fields: [previousUserId], references: [id], onDelete: SetNull)
 
-  newUserId    String?
+  newUserId    String?  @db.Uuid
   newUser      User?    @relation("NewUser", fields: [newUserId], references: [id], onDelete: SetNull)
 }
 
-// ─────────────────────────────────────────────
-// TAG
-// ─────────────────────────────────────────────
-
 model Tag {
-  id    String @id @default(uuid())
+  id    String @id @default(uuid()) @db.Uuid
   name  String
 
-  orgId String
+  orgId String @db.Uuid
   org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   tasks TaskTag[]
 
-  @@unique([name, orgId]) // tag names unique per org
+  @@unique([name, orgId]) 
 }
 
-// ─────────────────────────────────────────────
-// TASK TAG (Task ↔ Tag join table)
-// ─────────────────────────────────────────────
-
 model TaskTag {
-  taskId String
-  tagId  String
+  taskId String @db.Uuid
+  tagId  String @db.Uuid
 
   task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
   tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)

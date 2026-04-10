@@ -1,0 +1,665 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "CollabSpace Backend API",
+    "version": "1.0.0",
+    "description": "REST API for authentication, organizations, projects, tasks, tags, comments, task board retrieval, assignment history, and activity tracking."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:{port}",
+      "variables": {
+        "port": {
+          "default": "3000"
+        }
+      }
+    }
+  ],
+  "tags": [
+    { "name": "Auth" },
+    { "name": "Organizations" },
+    { "name": "Projects" },
+    { "name": "Tasks" },
+    { "name": "Tags" },
+    { "name": "Comments" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "ApiResponse": {
+        "type": "object",
+        "required": ["responseStatus", "message"],
+        "properties": {
+          "responseStatus": { "type": "integer", "enum": [0, 1] },
+          "message": { "type": "string" },
+          "result": {},
+          "page": { "type": "integer", "nullable": true },
+          "totalRecord": { "type": "integer", "nullable": true }
+        }
+      },
+      "AuthRegisterRequest": {
+        "type": "object",
+        "required": ["name", "email", "password"],
+        "properties": {
+          "name": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "minLength": 8 }
+        }
+      },
+      "AuthLoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string" }
+        }
+      },
+      "OrganizationCreateRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" }
+        }
+      },
+      "OrganizationAssignMemberRequest": {
+        "type": "object",
+        "required": ["userId", "role"],
+        "properties": {
+          "userId": { "type": "string" },
+          "role": { "type": "string", "enum": ["ADMIN", "MANAGER", "MEMBER", "USER"] }
+        }
+      },
+      "ProjectCreateRequest": {
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+          "title": { "type": "string" }
+        }
+      },
+      "ProjectUpdateRequest": {
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+          "title": { "type": "string" }
+        }
+      },
+      "TaskCreateRequest": {
+        "type": "object",
+        "required": ["title", "description"],
+        "properties": {
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "assignedTo": { "type": "string", "nullable": true },
+          "tagIds": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "TaskUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "assignedTo": { "type": "string", "nullable": true },
+          "tagIds": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "TaskUpdateStatusRequest": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string" }
+        }
+      },
+      "TagCreateRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" }
+        }
+      },
+      "TagUpdateRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" }
+        }
+      },
+      "CommentCreateRequest": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "message": { "type": "string" }
+        }
+      },
+      "CommentUpdateRequest": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "message": { "type": "string" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register a user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AuthRegisterRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "400": { "description": "Bad Request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AuthLoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "400": { "description": "Bad Request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout (blacklist token)",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations": {
+      "get": {
+        "tags": ["Organizations"],
+        "summary": "List organizations accessible to current user",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      },
+      "post": {
+        "tags": ["Organizations"],
+        "summary": "Create organization (SUPER_ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/OrganizationCreateRequest" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "403": { "description": "Forbidden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/users": {
+      "get": {
+        "tags": ["Organizations"],
+        "summary": "List all users (SUPER_ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "403": { "description": "Forbidden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}": {
+      "get": {
+        "tags": ["Organizations"],
+        "summary": "Get organization by id",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "400": { "description": "Bad Request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "403": { "description": "Forbidden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}/members": {
+      "get": {
+        "tags": ["Organizations"],
+        "summary": "List organization members",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      },
+      "post": {
+        "tags": ["Organizations"],
+        "summary": "Assign user to organization (ADMIN or SUPER_ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/OrganizationAssignMemberRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}/members/{userId}": {
+      "delete": {
+        "tags": ["Organizations"],
+        "summary": "Remove user from organization (ADMIN or SUPER_ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}/projects": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "List projects for organization",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "includeArchived", "in": "query", "required": false, "schema": { "type": "boolean" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Create project (MANAGER/ADMIN/SUPER_ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ProjectCreateRequest" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}/projects/{projectId}": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "Get project by id",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      },
+      "patch": {
+        "tags": ["Projects"],
+        "summary": "Update project title (MANAGER/ADMIN/SUPER_ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ProjectUpdateRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["Projects"],
+        "summary": "Archive project (MANAGER/ADMIN/SUPER_ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}/projects/{projectId}/tasks": {
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "List tasks for project",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "includeArchived", "in": "query", "required": false, "schema": { "type": "boolean" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      },
+      "post": {
+        "tags": ["Tasks"],
+        "summary": "Create task (MANAGER/ADMIN/SUPER_ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/TaskCreateRequest" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}/projects/{projectId}/tasks/board": {
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "Get project board",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}/projects/{projectId}/tasks/{taskId}": {
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "Get task by id",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      },
+      "put": {
+        "tags": ["Tasks"],
+        "summary": "Update task (MANAGER/ADMIN/SUPER_ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/TaskUpdateRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      },
+      "patch": {
+        "tags": ["Tasks"],
+        "summary": "Update task (MANAGER/ADMIN/SUPER_ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/TaskUpdateRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["Tasks"],
+        "summary": "Archive task (MANAGER/ADMIN/SUPER_ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}/projects/{projectId}/tasks/{taskId}/status": {
+      "patch": {
+        "tags": ["Tasks"],
+        "summary": "Update task status",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/TaskUpdateStatusRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } },
+          "403": { "description": "Forbidden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}/projects/{projectId}/tasks/{taskId}/activity-logs": {
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "Get task activity logs",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}/projects/{projectId}/tasks/{taskId}/assignment-history": {
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "Get task assignment history",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}/tags": {
+      "get": {
+        "tags": ["Tags"],
+        "summary": "List tags for organization",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      },
+      "post": {
+        "tags": ["Tags"],
+        "summary": "Create tag (MANAGER/ADMIN/SUPER_ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/TagCreateRequest" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}/tags/{tagId}": {
+      "patch": {
+        "tags": ["Tags"],
+        "summary": "Update tag (MANAGER/ADMIN/SUPER_ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "tagId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/TagUpdateRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["Tags"],
+        "summary": "Delete tag (MANAGER/ADMIN/SUPER_ADMIN)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "tagId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}/projects/{projectId}/tasks/{taskId}/comments": {
+      "get": {
+        "tags": ["Comments"],
+        "summary": "List comments for a task",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      },
+      "post": {
+        "tags": ["Comments"],
+        "summary": "Create comment",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CommentCreateRequest" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    },
+    "/organizations/{orgId}/projects/{projectId}/tasks/{taskId}/comments/{commentId}": {
+      "patch": {
+        "tags": ["Comments"],
+        "summary": "Update comment",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "commentId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CommentUpdateRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["Comments"],
+        "summary": "Delete comment",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "commentId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResponse" } } } }
+        }
+      }
+    }
+  }
+}
