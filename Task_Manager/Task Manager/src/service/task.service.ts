@@ -9,7 +9,7 @@ export const createTask = async (userId: number, data: CreateTaskInput) => {
   if (!data.title || data.title.trim() === "") {
     const err: Error & { statusCode?: number } = new Error(
       "Task title is required."
-    );
+    );  
     err.statusCode = 400;
     throw err;
   }

@@ -1,0 +1,103 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CEO
+  HR
+  MANAGER
+  EMPLOYEE
+}
+
+enum LeaveType {
+  SICK
+  PAID
+  LWP
+  FLEXY
+  WFH
+  UNPAID
+}
+
+enum ProjectStatus {
+  BACKLOG
+  PLANNING
+  ONGOING
+  STAGING
+  COMPLETED
+}
+
+model Employee {
+  id          String      @id @default(uuid()) @db.Uuid
+  email       String      @unique
+  name        String
+  contact     String
+  dob         DateTime
+  address     String
+  gender      String
+  role        Role        @default(EMPLOYEE)
+
+  salaryAcct  SalaryAcct?
+  leaves      Leave[]
+  projects    Project[]
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model SalaryAcct {
+  id          String      @id @default(uuid()) @db.Uuid
+  bank        String
+  // employee    Employee
+  acctNo      String      @unique
+  openedAt    DateTime    @default(now())
+  employeeId  String      @unique @db.Uuid
+  employee    Employee    @relation(fields: [employeeId], references: [id])
+}
+
+model Leave {
+  id          String      @id @default(uuid()) @db.Uuid
+  type        LeaveType   @default(UNPAID)  
+  reason      String
+
+  employeeId  String      @db.Uuid
+  employee    Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Client {
+  id          String      @id @default(uuid()) @db.Uuid
+  name        String    
+  email       String      @unique
+  contact     String
+
+  projects    Project[]
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Project {
+  id          String      @id @default(uuid()) @db.Uuid
+  name        String      @unique
+  description String
+  status      ProjectStatus @default(BACKLOG)
+  employees   Employee[]
+
+  clientId    String      @db.Uuid
+  client      Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
